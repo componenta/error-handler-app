@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "componenta/app": "^1.0",
+        "componenta/app": "^2.0@dev",
         "componenta/config": "^1.0",
         "componenta/error-handler": "^1.0",
         "componenta/http-emitter": "^1.0",
@@ -25,12 +25,21 @@
     "require-dev": {
         "pestphp/pest": "^4.0"
     },
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "extra": {
         "componenta": {
             "config-providers": [
                 "Componenta\\Error\\App\\ConfigProvider"
             ]
         }
-    }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "@php vendor/bin/pest"
+    },
+    "prefer-stable": true
 }
