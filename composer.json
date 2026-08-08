@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "componenta/app": "^2.0@dev",
+        "componenta/app": "^2.0",
         "componenta/config": "^1.0",
         "componenta/error-handler": "^1.0",
         "componenta/http-emitter": "^1.0",
@@ -25,7 +25,7 @@
     "require-dev": {
         "pestphp/pest": "^4.0"
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "extra": {
         "componenta": {
             "config-providers": [
