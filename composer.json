@@ -6,7 +6,7 @@
     "require": {
         "php": "^8.4",
         "componenta/app": "^1.0",
-        "componenta/config": "^1.0",
+        "componenta/config": "^2.0",
         "componenta/error-handler": "^1.0",
         "componenta/http-emitter": "^1.0",
         "componenta/path-resolver": "^1.0",
