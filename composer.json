@@ -5,10 +5,10 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "componenta/app": "^1.0 || ^2.0 || ^3.0.2",
-        "componenta/config": "^2.0.2",
-        "componenta/error-handler": "^1.0.2",
-        "componenta/http-emitter": "^1.0",
+        "componenta/app": "^4.0.0",
+        "componenta/config": "^3.0.0",
+        "componenta/error-handler": "^1.0.3",
+        "componenta/http-emitter": "^1.0.3",
         "componenta/path-resolver": "^1.0",
         "psr/container": "^2.0"
     },
@@ -31,6 +31,9 @@
             "config-providers": [
                 "Componenta\\Error\\App\\ConfigProvider"
             ]
+        },
+        "branch-alias": {
+            "dev-main": "1.1.x-dev"
         }
     },
     "config": {
