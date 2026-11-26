@@ -28,12 +28,17 @@ final readonly class HtmlLogListener extends AbstractErrorListener
             return;
         }
 
-        // A snapshot is HTML even when the original client requested JSON.
-        $context = new HttpContext(
-            $event->context->request->withHeader('Accept', 'text/html'),
-            $event->context->getAttributes(),
-        );
-        $rendered = $this->renderer->renderHttp($event->exception, $context);
+        // Keep original request metadata in the diagnostic snapshot. A
+        // non-debug PrettyPageRenderer can negotiate JSON, so only that path
+        // needs a separate HTML representation.
+        $rendered = $this->renderer->renderHttp($event->exception, $event->context);
+        if (strtolower(trim(explode(';', $rendered->contentType, 2)[0])) !== 'text/html') {
+            $context = new HttpContext(
+                $event->context->request->withHeader('Accept', 'text/html'),
+                $event->context->getAttributes(),
+            );
+            $rendered = $this->renderer->renderHttp($event->exception, $context);
+        }
         if (strtolower(trim(explode(';', $rendered->contentType, 2)[0])) !== 'text/html') {
             throw new \RuntimeException('The error snapshot renderer did not produce HTML.');
         }

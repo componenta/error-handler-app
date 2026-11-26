@@ -71,4 +71,27 @@ final class LogSecurityTest extends TestCase
         }
         self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
     }
+
+    public function testDebugSnapshotRetainsOriginalRequestMetadataAndCorrelation(): void
+    {
+        $template = $this->directory . '/snapshot.phtml';
+        file_put_contents($template, '<!doctype html><html><body><?= $e($headers["Accept"] ?? "") ?>;<?= $e($errorId) ?></body></html>');
+        $event = new ErrorEvent(
+            new RuntimeException('failure'),
+            new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            errorId: 'ERR-snapshot-123',
+        );
+
+        $listener = new HtmlLogListener(
+            $this->directory,
+            new PrettyPageRenderer(templatePath: $template, includeSource: false),
+            enabled: true,
+        );
+        $listener->handleEvent($event);
+
+        $files = glob($this->directory . '/*.html');
+        self::assertCount(1, $files);
+        self::assertSame('<!doctype html><html><body>application/json;ERR-snapshot-123</body></html>', file_get_contents($files[0]));
+        self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
+    }
 }
