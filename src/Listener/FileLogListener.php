@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\App\Listener;
 
 use Componenta\Error\Context\CliErrorContextInterface;
+use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
@@ -34,8 +35,9 @@ final readonly class FileLogListener extends AbstractErrorListener
         if ($context instanceof HttpErrorContextInterface) {
             $record['transport'] = 'http';
             $record['method'] = $context->request->getMethod();
-            if ($event->result instanceof \Psr\Http\Message\ResponseInterface) {
-                $record['status'] = $event->result->getStatusCode();
+            $status = $context->getAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, null);
+            if (is_int($status) && $status >= 100 && $status <= 599) {
+                $record['status'] = $status;
             }
         } elseif ($context instanceof CliErrorContextInterface) {
             $record['transport'] = 'cli';

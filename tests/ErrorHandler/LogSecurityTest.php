@@ -7,6 +7,7 @@ namespace Componenta\Error\App\Tests\ErrorHandler;
 use Componenta\Error\App\Listener\FileLogListener;
 use Componenta\Error\App\Listener\HtmlLogListener;
 use Componenta\Error\Context\HttpContext;
+use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Nyholm\Psr7\ServerRequest;
@@ -35,7 +36,8 @@ final class LogSecurityTest extends TestCase
     {
         $event = new ErrorEvent(
             new RuntimeException("injected\nfake record secret"),
-            new HttpContext(new ServerRequest('GET', '/?token=private-query')),
+            new HttpContext(new ServerRequest('GET', '/?token=private-query'), [ErrorContextAttribute::HTTP_STATUS_CODE => 503]),
+            timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'),
             errorId: 'ERR-test',
         );
         (new FileLogListener($this->directory))->handleEvent($event);
@@ -45,6 +47,8 @@ final class LogSecurityTest extends TestCase
         self::assertCount(1, $lines);
         $record = json_decode($lines[0], true, flags: JSON_THROW_ON_ERROR);
         self::assertSame('ERR-test', $record['error_id']);
+        self::assertSame(503, $record['status']);
+        self::assertSame('2026-01-01T12:00:00+00:00', $record['timestamp']);
         self::assertStringNotContainsString('private-query', $lines[0]);
         self::assertStringNotContainsString('fake record secret', $lines[0]);
         if (DIRECTORY_SEPARATOR === '/') {
@@ -54,7 +58,7 @@ final class LogSecurityTest extends TestCase
 
     public function testHtmlSnapshotsAreOptInAndNeverOverwriteEachOther(): void
     {
-        $event = new ErrorEvent(new RuntimeException('failure'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])), errorId: 'same');
+        $event = new ErrorEvent(new RuntimeException('failure'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])), timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'), errorId: 'same');
         (new HtmlLogListener($this->directory, new PrettyPageRenderer()))->handleEvent($event);
         self::assertSame([], glob($this->directory . '/*.html'));
 
@@ -79,6 +83,7 @@ final class LogSecurityTest extends TestCase
         $event = new ErrorEvent(
             new RuntimeException('failure'),
             new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'),
             errorId: 'ERR-snapshot-123',
         );
 

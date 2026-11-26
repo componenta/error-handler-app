@@ -16,6 +16,7 @@ for ($i = 0; $i < 25; $i++) {
     $listener->handleEvent(new ErrorEvent(
         new RuntimeException(str_repeat('record-', 400)),
         $context,
+        timestamp: new DateTimeImmutable('2026-01-01T12:00:00Z'),
         errorId: 'worker-' . $argv[2] . '-' . $i,
     ));
 }

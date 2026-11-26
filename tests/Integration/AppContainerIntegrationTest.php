@@ -16,6 +16,8 @@ use Componenta\Error\Handler\CliErrorHandlerInterface;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Stdlib\PathResolverInterface;
 use Componenta\Stdlib\PathResolver;
+use Psr\Clock\ClockInterface;
+use DateTimeImmutable;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -31,6 +33,9 @@ final class AppContainerIntegrationTest extends TestCase
         $directory = sys_get_temp_dir() . '/error-handler-app-di-' . bin2hex(random_bytes(12));
         mkdir($directory, 0700);
         $paths = new PathResolver($directory);
+        $instant = new DateTimeImmutable('2026-02-03T04:05:06+00:00');
+        $clock = $this->createStub(ClockInterface::class);
+        $clock->method('now')->willReturn($instant);
 
         try {
             file_put_contents($directory . '/.env', "APP_DEBUG=true\n");
@@ -43,6 +48,7 @@ final class AppContainerIntegrationTest extends TestCase
                         ConfigKey::SERVICES => [
                             PathResolverInterface::class => $paths,
                             ResponseFactoryInterface::class => new Psr17Factory(),
+                            ClockInterface::class => $clock,
                         ],
                     ],
                 ],
@@ -78,6 +84,9 @@ final class AppContainerIntegrationTest extends TestCase
             $http = json_decode($lines[0], true, flags: JSON_THROW_ON_ERROR);
             $cliRecord = json_decode($lines[1], true, flags: JSON_THROW_ON_ERROR);
             self::assertSame('http', $http['transport']);
+            self::assertSame(500, $http['status']);
+            self::assertSame($instant->format(DATE_ATOM), $http['timestamp']);
+            self::assertSame($instant->format(DATE_ATOM), $cliRecord['timestamp']);
             self::assertSame('cli', $cliRecord['transport']);
             self::assertSame($httpId, $http['error_id']);
             self::assertStringContainsString('Error ID: ' . $cliRecord['error_id'], $cli);
