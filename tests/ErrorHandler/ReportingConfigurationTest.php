@@ -130,6 +130,43 @@ final class ReportingConfigurationTest extends TestCase
         self::assertSame([$listener], iterator_to_array((new ErrorListenerProviderFactory())($container)->provideFor(new RuntimeException())));
     }
 
+    public function testPreparedDiscoveryMapAndFreshClassIteratorHaveTheSameRouting(): void
+    {
+        $classes = [DiscoveredErrorListener::class, ExplicitAttributedListener::class];
+        $fresh = new ClassIterator(array_map(static fn (string $class): ClassInfo => new ClassInfo($class), $classes));
+        $map = [];
+        foreach ($classes as $class) {
+            $info = new ClassInfo($class);
+            $map[] = [
+                'file' => __FILE__,
+                'name' => $class,
+                'type' => $info->type->value,
+                'abstract' => false,
+                'final' => true,
+                'readonly' => false,
+            ];
+        }
+        $prepared = ClassIterator::fromMap($map);
+        $runtime = new DiscoveredErrorListener();
+        $logic = new ExplicitAttributedListener();
+        $config = new Config([], new Environment([]));
+        $resolutions = [];
+        foreach ([$fresh, $prepared] as $source) {
+            $container = $this->container([
+                Config::class => $config,
+                ClassIteratorInterface::class => $source,
+                DiscoveredErrorListener::class => $runtime,
+                ExplicitAttributedListener::class => $logic,
+            ], $resolutions);
+            $provider = (new ErrorListenerProviderFactory())($container);
+
+            self::assertSame([$runtime], iterator_to_array($provider->provideFor(new RuntimeException())));
+            self::assertSame([$logic], iterator_to_array($provider->provideFor(new LogicException())));
+            self::assertSame([], iterator_to_array($provider->provideFor(new \TypeError())));
+            self::assertSame([$runtime], iterator_to_array($provider->provideFor(new RuntimeException())));
+        }
+    }
+
     private function container(array $services, array &$resolutions): ContainerInterface
     {
         $container = $this->createStub(ContainerInterface::class);
