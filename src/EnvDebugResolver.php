@@ -12,7 +12,10 @@ final class EnvDebugResolver
 
     public static function resolve(PathResolverInterface $paths): bool
     {
-        $value = self::readValue($paths->resolve('.env'));
+        $process = getenv(self::KEY);
+        $environment = $_ENV[self::KEY] ?? null;
+        $value = $process !== false ? $process
+            : (is_string($environment) ? $environment : self::readValue($paths->resolve('.env')));
 
         return match (strtolower(trim($value ?? ''))) {
             '1', 'true', 'yes', 'on' => true,
@@ -26,7 +29,11 @@ final class EnvDebugResolver
             return null;
         }
 
-        $lines = file($path, FILE_IGNORE_NEW_LINES);
+        $size = @filesize($path);
+        if ($size === false || $size > 1_048_576) {
+            return null;
+        }
+        $lines = @file($path, FILE_IGNORE_NEW_LINES);
 
         if ($lines === false) {
             return null;

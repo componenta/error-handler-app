@@ -45,13 +45,18 @@ final class ConfigProvider extends BaseConfigProvider
                 );
             },
             FileLogListener::class => static function (ContainerInterface $container): FileLogListener {
-                return new FileLogListener($container->get(PathResolverInterface::class)->resolve('log'));
+                $paths = $container->get(PathResolverInterface::class);
+
+                return new FileLogListener(
+                    $paths->resolve('log/error-handler'),
+                    includeDebugDetails: EnvDebugResolver::resolve($paths),
+                );
             },
             HtmlLogListener::class => static function (ContainerInterface $container): HtmlLogListener {
                 $paths = $container->get(PathResolverInterface::class);
 
                 return new HtmlLogListener(
-                    logDir: $paths->resolve('log'),
+                    logDir: $paths->resolve('log/error-handler'),
                     renderer: new PrettyPageRenderer(debug: true),
                     enabled: EnvDebugResolver::resolve($paths),
                 );

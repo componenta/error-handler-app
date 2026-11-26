@@ -8,60 +8,31 @@ use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
 use Componenta\Error\Renderer\PrettyPageRenderer;
-use ReflectionClass;
-use Throwable;
 
 final readonly class HtmlLogListener extends AbstractErrorListener
 {
+    private PrivateLogStorage $storage;
+
     public function __construct(
-        private string $logDir,
+        string $logDir,
         private PrettyPageRenderer $renderer,
-        private bool $enabled = true,
+        private bool $enabled = false,
     ) {
+        $this->storage = new PrivateLogStorage($logDir);
     }
 
     public function handleEvent(ErrorEventInterface $event): void
     {
-        if (!$this->enabled) {
+        if (!$this->enabled || !$event->context instanceof HttpErrorContextInterface) {
             return;
         }
 
-        if (!$event->context instanceof HttpErrorContextInterface) {
-            return;
+        $html = $this->renderer->render($event->exception, $event->context);
+        if (strlen($html) > 2_097_152) {
+            throw new \RuntimeException('Error snapshot exceeds the storage limit.');
         }
-
-        try {
-            $html = $this->renderer->render($event->exception, $event->context);
-
-            file_put_contents($this->resolveFilePath($event), $html, LOCK_EX);
-        } catch (Throwable) {
-        }
-    }
-
-    private function resolveFilePath(ErrorEventInterface $event): string
-    {
-        $this->ensureDirectory();
-
-        $timestamp = $event->timestamp->format('d-m-Y-H-i-s');
-        $class = (new ReflectionClass($event->exception))->getShortName();
-        $base = $this->logDir . '/' . $timestamp . '_' . $class;
-        $path = $base . '.html';
-
-        $index = 2;
-        while (file_exists($path)) {
-            $path = $base . '_' . $index . '.html';
-            $index++;
-        }
-
-        return $path;
-    }
-
-    private function ensureDirectory(): void
-    {
-        if (is_dir($this->logDir)) {
-            return;
-        }
-
-        @mkdir($this->logDir, 0755, true);
+        $correlation = $event->errorId === null ? 'uncorrelated' : hash('sha256', $event->errorId);
+        $name = $event->timestamp->format('Ymd-His') . '_' . $correlation . '_' . bin2hex(random_bytes(16)) . '.html';
+        $this->storage->create($name, $html);
     }
 }

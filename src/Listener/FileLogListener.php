@@ -8,74 +8,49 @@ use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
-use Throwable;
 
 final readonly class FileLogListener extends AbstractErrorListener
 {
-    public function __construct(
-        private string $logDir,
-    ) {
+    private PrivateLogStorage $storage;
+
+    public function __construct(string $logDir, private bool $includeDebugDetails = false)
+    {
+        $this->storage = new PrivateLogStorage($logDir);
     }
 
     public function handleEvent(ErrorEventInterface $event): void
     {
-        try {
-            file_put_contents($this->resolveFilePath($event), $this->format($event), FILE_APPEND | LOCK_EX);
-        } catch (Throwable) {
-        }
-    }
-
-    private function resolveFilePath(ErrorEventInterface $event): string
-    {
-        $this->ensureDirectory();
-
-        return $this->logDir . '/error-' . $event->timestamp->format('Y-m-d') . '.log';
-    }
-
-    private function ensureDirectory(): void
-    {
-        if (is_dir($this->logDir)) {
-            return;
-        }
-
-        if (!@mkdir($this->logDir, 0755, true) && !is_dir($this->logDir)) {
-            return;
-        }
-    }
-
-    private function format(ErrorEventInterface $event): string
-    {
         $exception = $event->exception;
         $context = $event->context;
-        $lines = [
-            sprintf('[%s] %s', $event->timestamp->format('Y-m-d H:i:s'), $this->level($exception)),
-            sprintf('%s: %s', $exception::class, $exception->getMessage()),
-            sprintf('in %s:%d', $exception->getFile(), $exception->getLine()),
+        $record = [
+            'timestamp' => $event->timestamp->format(DATE_ATOM),
+            'level' => $exception instanceof \Error ? 'critical' : 'error',
+            'error_id' => $event->errorId,
+            'exception' => $exception::class,
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
         ];
 
-        $scope = $context->getAttribute('scope', null);
-
-        if (is_string($scope) && $scope !== '') {
-            $lines[] = 'scope: ' . $scope;
-        }
-
         if ($context instanceof HttpErrorContextInterface) {
-            $request = $context->request;
-            $lines[] = sprintf('request: %s %s', $request->getMethod(), (string) $request->getUri());
+            $record['transport'] = 'http';
+            $record['method'] = $context->request->getMethod();
+            if ($event->result instanceof \Psr\Http\Message\ResponseInterface) {
+                $record['status'] = $event->result->getStatusCode();
+            }
+        } elseif ($context instanceof CliErrorContextInterface) {
+            $record['transport'] = 'cli';
         }
 
-        if ($context instanceof CliErrorContextInterface) {
-            $lines[] = 'command: ' . json_encode($context->input->getArguments(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($this->includeDebugDetails) {
+            // Messages can contain arbitrary confidential data. This mode must
+            // be enabled explicitly only for a trusted diagnostic environment.
+            $record['message'] = mb_strcut($exception->getMessage(), 0, 4096, 'UTF-8');
+            $record['trace'] = array_map(static fn (array $frame): array => array_intersect_key(
+                $frame, array_flip(['file', 'line', 'class', 'function', 'type']),
+            ), array_slice($exception->getTrace(), 0, 50));
         }
 
-        $lines[] = $exception->getTraceAsString();
-        $lines[] = "---\n";
-
-        return implode("\n", $lines);
-    }
-
-    private function level(Throwable $exception): string
-    {
-        return $exception instanceof \Error ? 'critical' : 'error';
+        $line = json_encode($record, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $this->storage->append('error-' . $event->timestamp->format('Y-m-d') . '.log', $line . "\n");
     }
 }
