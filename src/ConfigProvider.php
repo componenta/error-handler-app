@@ -7,6 +7,11 @@ namespace Componenta\Error\App;
 use Componenta\Config\Config;
 use Componenta\Config\ConfigProvider as BaseConfigProvider;
 use Componenta\Error\ConfigKey as ErrorConfigKey;
+use Componenta\Error\App\Factory\ErrorListenerProviderFactory;
+use Componenta\Error\App\Factory\NonReportableErrorsFactory;
+use Componenta\Error\Event\ErrorListenerProviderInterface;
+use Componenta\Error\Reporter\Policy\ErrorReportingPolicyInterface;
+use Throwable;
 use Componenta\Error\App\Listener\FileLogListener;
 use Componenta\Error\App\Listener\HtmlLogListener;
 use Componenta\Error\Renderer\PlainTextRenderer;
@@ -21,9 +26,8 @@ final class ConfigProvider extends BaseConfigProvider
     protected function getConfig(): array
     {
         return [
-            ErrorConfigKey::ERROR_LISTENERS => [
-                FileLogListener::class,
-                HtmlLogListener::class,
+            ConfigKey::ERROR_LISTENERS => [
+                Throwable::class => [FileLogListener::class, HtmlLogListener::class],
             ],
         ];
     }
@@ -31,6 +35,8 @@ final class ConfigProvider extends BaseConfigProvider
     protected function getFactories(): array
     {
         return [
+            ErrorListenerProviderInterface::class => ErrorListenerProviderFactory::class,
+            ErrorReportingPolicyInterface::class => NonReportableErrorsFactory::class,
             ErrorConfigKey::HTTP_RENDERER => static function (ContainerInterface $container): PrettyPageRenderer|SafeRenderer {
                 $paths = $container->get(PathResolverInterface::class);
 

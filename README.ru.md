@@ -32,12 +32,12 @@ composer require componenta/error-handler-app
 
 | Ключ или сервис | Значение |
 |---|---|
-| `ErrorConfigKey::ERROR_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
+| `ConfigKey::ERROR_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
 | `ErrorConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` в режиме отладки, иначе `SafeRenderer` с `templates/error/500.phtml`. |
 | `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` в режиме отладки, иначе `SafeCliRenderer`. |
 | `SafeRenderer::class` | Безопасный рендерер, привязанный к `templates/error/500.phtml`. |
 
-Пакет не заменяет базовые обработчики из `componenta/error-handler`; он только предоставляет рендереры и слушатели приложения, которые используют эти обработчики.
+Пакет предоставляет фабрики провайдера слушателей и политики регистрации, а также рендереры и слушатели приложения. Базовые обработчики остаются в error-handler.
 
 ## Связанные пакеты
 
@@ -52,3 +52,22 @@ composer require componenta/error-handler-app
 Рендереры возвращают объект `RenderedError` из ядра (`content`, `contentType`, `Stringable`). HTML-снимки используют этот же контракт без отдельного метода HTTP-рендеринга.
 
 Ядро регистрирует единый репортёр, не зависящий от транспорта. Файловый журнал обрабатывает HTTP- и CLI-события, а HTML-снимки — только HTTP при включённой отладке. Слушатели получают обязательный `ErrorOccurrence` через `$event->error`, HTTP-статус — из контекста.
+
+## Регистрация и обнаружение слушателей
+
+Для настройки регистрации используется Componenta\Error\App\ConfigKey:
+
+```php
+return [
+    ConfigKey::ERROR_LISTENERS => [
+        Throwable::class => [FileLogListener::class],
+        RuntimeException::class => [
+            ['listener' => MonitoringListener::class, 'priority' => 100],
+        ],
+    ],
+    ConfigKey::ERROR_LISTENER_CLASSES => [CustomAttributedListener::class],
+    ConfigKey::NON_REPORTABLE_ERRORS => [ExpectedException::class],
+];
+```
+
+Приложение создаёт составной провайдер (сначала явные регистрации, затем регистрации по атрибутам). Обозначайте конкретные классы слушателей атрибутом #[\Componenta\Error\Event\Attribute\ListenTo(RuntimeException::class, priority: 10)] и обеспечьте их разрешение по имени класса через контейнер. Если приложение предоставляет Componenta\ClassFinder\ClassIteratorInterface, существующие результаты обнаружения используются один раз при создании провайдера; дополнительное сканирование файловой системы не запускается. Значение false для ConfigKey::DISCOVER_ERROR_LISTENERS отключает автоматическое обнаружение. Если итератор обнаруженных классов отсутствует, работает явно настроенный список кандидатов. Разрешите ErrorListenerProviderInterface при инициализации приложения, чтобы подготовить маршрутизацию до обработки ошибок. Провайдер ядра не зависит от ClassFinder или среды выполнения приложения. Выбор часов и создание события остаются ответственностью репортёра.

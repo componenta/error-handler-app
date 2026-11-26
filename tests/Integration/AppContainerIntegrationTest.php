@@ -9,6 +9,11 @@ use Componenta\Config\ConfigKey;
 use Componenta\Config\Environment;
 use Componenta\DI\ContainerFactory;
 use Componenta\Error\App\ConfigProvider as AppProvider;
+use Componenta\Error\App\Tests\Fixture\IntegrationErrorListener;
+use Componenta\ClassFinder\ClassIterator;
+use Componenta\ClassFinder\ClassIteratorInterface;
+use Componenta\Tokenizer\ClassInfo;
+use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\ConfigProvider as CoreProvider;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
@@ -36,6 +41,7 @@ final class AppContainerIntegrationTest extends TestCase
         mkdir($directory, 0700);
         $paths = new PathResolver($directory);
         $instant = new DateTimeImmutable('2026-02-03T04:05:06+00:00');
+        $listener = new IntegrationErrorListener();
         $clock = $this->createStub(ClockInterface::class);
         $clock->method('now')->willReturn($instant);
 
@@ -51,12 +57,16 @@ final class AppContainerIntegrationTest extends TestCase
                             PathResolverInterface::class => $paths,
                             ResponseFactoryInterface::class => new Psr17Factory(),
                             ClockInterface::class => $clock,
+                            ClassIteratorInterface::class => new ClassIterator([new ClassInfo(IntegrationErrorListener::class)]),
+                            IntegrationErrorListener::class => $listener,
                         ],
                     ],
                 ],
             );
 
             $container = (new ContainerFactory())->create($composition->config, $composition->dependencies);
+            $container->get(ErrorListenerProviderInterface::class);
+            self::assertSame([], $listener->events);
             $error = new RuntimeException('private-exception-message');
             $factory = $container->get(ErrorOccurrenceFactory::class);
             $httpError = $factory->create($error);
@@ -97,6 +107,8 @@ final class AppContainerIntegrationTest extends TestCase
             self::assertStringContainsString('Error ID: ' . $cliRecord['error_id'], $cli);
             self::assertSame($cliError->id, $cliRecord['error_id']);
             self::assertNotSame($http['error_id'], $cliRecord['error_id']);
+            self::assertSame([$httpError, $cliError], array_map(static fn ($event) => $event->error, $listener->events));
+            self::assertSame($instant, $listener->events[0]->timestamp);
             self::assertArrayNotHasKey('message', $http);
             self::assertArrayNotHasKey('message', $cliRecord);
             self::assertSame([], glob($directory . '/log/error-handler/*.html'));
