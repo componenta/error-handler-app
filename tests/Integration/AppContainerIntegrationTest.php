@@ -18,7 +18,7 @@ use Componenta\Error\ConfigProvider as CoreProvider;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorOccurrenceFactory;
-use Componenta\Error\Reporter\ErrorReporterInterface;
+use Componenta\Error\Reporter\Attribute\NonReportable;
 use Componenta\Error\Handler\CliErrorHandlerInterface;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Stdlib\PathResolverInterface;
@@ -32,6 +32,11 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+
+#[NonReportable]
+final class ExpectedApplicationFailure extends RuntimeException
+{
+}
 
 final class AppContainerIntegrationTest extends TestCase
 {
@@ -91,6 +96,16 @@ final class AppContainerIntegrationTest extends TestCase
             self::assertStringContainsString('An unexpected error occurred', $cli);
             self::assertStringNotContainsString('private-exception-message', $cli);
             self::assertStringNotContainsString(__FILE__, $cli);
+
+            // An attributed error still renders a correlated response, but
+            // neither the configured file logger nor the discovered listener runs.
+            $expected = $factory->create(new ExpectedApplicationFailure('expected failure'));
+            $expectedResponse = $container->get(HttpErrorHandlerInterface::class)->handle(
+                $expected,
+                new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            );
+            self::assertSame(500, $expectedResponse->getStatusCode());
+            self::assertSame($expected->id, $expectedResponse->getHeaderLine('X-Error-ID'));
 
             $logs = glob($directory . '/log/error-handler/*.log');
             self::assertCount(1, $logs);
