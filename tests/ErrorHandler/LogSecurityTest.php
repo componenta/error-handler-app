@@ -7,13 +7,17 @@ namespace Componenta\Error\App\Tests\ErrorHandler;
 use Componenta\Error\App\Listener\FileLogListener;
 use Componenta\Error\App\Listener\HtmlLogListener;
 use Componenta\Error\Context\HttpContext;
+use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Renderer\PrettyPageRenderer;
+use Componenta\Error\Renderer\ErrorRendererInterface;
+use Componenta\Error\Renderer\RenderedError;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use UnexpectedValueException;
 
 final class LogSecurityTest extends TestCase
 {
@@ -62,7 +66,7 @@ final class LogSecurityTest extends TestCase
         (new HtmlLogListener($this->directory, new PrettyPageRenderer()))->handleEvent($event);
         self::assertSame([], glob($this->directory . '/*.html'));
 
-        $listener = new HtmlLogListener($this->directory, new PrettyPageRenderer(debug: false), enabled: true);
+        $listener = new HtmlLogListener($this->directory, new PrettyPageRenderer(debug: true, includeSource: false), enabled: true);
         $listener->handleEvent($event);
         $listener->handleEvent($event);
         $snapshots = glob($this->directory . '/*.html');
@@ -97,5 +101,101 @@ final class LogSecurityTest extends TestCase
         self::assertCount(1, $files);
         self::assertSame('<!doctype html><html><body>application/json;ERR-snapshot-123</body></html>', file_get_contents($files[0]));
         self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
+    }
+
+    public function testSnapshotAcceptsCustomRendererAndPreservesOriginalEventContext(): void
+    {
+        $event = new ErrorEvent(
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-custom'),
+            new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            new \DateTimeImmutable('2026-01-01T12:00:00Z'),
+        );
+        $html = '<!doctype html><html><body>ERR-custom</body></html>';
+        $renderer = $this->createMock(ErrorRendererInterface::class);
+        $renderer->expects(self::once())->method('supports')->with(self::identicalTo($event->error), self::identicalTo($event->context))->willReturn(true);
+        $renderer->expects(self::once())->method('render')->with(self::identicalTo($event->error), self::identicalTo($event->context))->willReturn(new RenderedError($html, 'Text/HTML; charset=utf-8'));
+
+        (new HtmlLogListener($this->directory, $renderer, enabled: true))->handleEvent($event);
+
+        $files = glob($this->directory . '/*.html');
+        self::assertCount(1, $files);
+        self::assertSame($html, file_get_contents($files[0]));
+        self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
+    }
+
+    public function testUnsupportedRendererIsNeverInvoked(): void
+    {
+        $event = new ErrorEvent(
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-unsupported'),
+            new HttpContext(new ServerRequest('GET', '/')),
+            new \DateTimeImmutable('2026-01-01T12:00:00Z'),
+        );
+        $renderer = $this->createMock(ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(false);
+        $renderer->expects(self::never())->method('render');
+        $listener = new HtmlLogListener($this->directory, $renderer, enabled: true);
+
+        self::assertFalse($listener->supports($event->error, $event->context));
+        $listener->handleEvent($event);
+        self::assertSame([], glob($this->directory . '/*.html'));
+    }
+
+    public function testDisabledListenerAndCliContextDoNotConsultRenderer(): void
+    {
+        $renderer = $this->createMock(ErrorRendererInterface::class);
+        $renderer->expects(self::never())->method('supports');
+        $renderer->expects(self::never())->method('render');
+        $error = new ErrorOccurrence(new RuntimeException('failure'), 'ERR-disabled');
+        $http = new HttpContext(new ServerRequest('GET', '/'));
+        $cli = CliContext::fromArgv();
+        $disabled = new HtmlLogListener($this->directory, $renderer);
+        $enabled = new HtmlLogListener($this->directory, $renderer, enabled: true);
+
+        self::assertFalse($disabled->supports($error, $http));
+        self::assertFalse($enabled->supports($error, $cli));
+        $disabled->handleEvent(new ErrorEvent($error, $http, new \DateTimeImmutable()));
+        $enabled->handleEvent(new ErrorEvent($error, $cli, new \DateTimeImmutable()));
+        self::assertSame([], glob($this->directory . '/*.html'));
+    }
+
+    public function testNonHtmlResultIsRejectedWithoutRetryOrWritingFile(): void
+    {
+        $event = new ErrorEvent(
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-json'),
+            new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            new \DateTimeImmutable('2026-01-01T12:00:00Z'),
+        );
+        $renderer = $this->createMock(ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(true);
+        $renderer->expects(self::once())->method('render')->with(self::identicalTo($event->error), self::identicalTo($event->context))->willReturn(new RenderedError('{}', 'application/json'));
+        $listener = new HtmlLogListener($this->directory, $renderer, enabled: true);
+
+        try {
+            $listener->handleEvent($event);
+            self::fail('A non-HTML snapshot must be rejected.');
+        } catch (UnexpectedValueException $failure) {
+            self::assertStringContainsString('text/html', $failure->getMessage());
+        }
+
+        self::assertSame([], glob($this->directory . '/*.html'));
+        self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
+    }
+
+    public function testNegotiatingRendererCannotSilentlyReplaceRequestAcceptHeader(): void
+    {
+        $event = new ErrorEvent(
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-negotiation'),
+            new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
+            new \DateTimeImmutable('2026-01-01T12:00:00Z'),
+        );
+        $listener = new HtmlLogListener($this->directory, new PrettyPageRenderer(debug: false), enabled: true);
+
+        try {
+            $listener->handleEvent($event);
+            self::fail('A JSON result must not be negotiated into HTML by the listener.');
+        } catch (UnexpectedValueException) {
+            self::assertSame([], glob($this->directory . '/*.html'));
+            self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
+        }
     }
 }
