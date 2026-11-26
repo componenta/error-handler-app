@@ -15,6 +15,7 @@ use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Handler\CliErrorHandlerInterface;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Stdlib\PathResolverInterface;
+use Componenta\Stdlib\PathResolver;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -29,13 +30,7 @@ final class AppContainerIntegrationTest extends TestCase
     {
         $directory = sys_get_temp_dir() . '/error-handler-app-di-' . bin2hex(random_bytes(12));
         mkdir($directory, 0700);
-        $paths = new readonly class($directory) implements PathResolverInterface {
-            public function __construct(private string $directory) {}
-            public function resolve(string $path): string
-            {
-                return $this->directory . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
-            }
-        };
+        $paths = new PathResolver($directory);
 
         try {
             file_put_contents($directory . '/.env', "APP_DEBUG=true\n");
