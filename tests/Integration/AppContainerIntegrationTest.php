@@ -9,6 +9,11 @@ use Componenta\Config\ConfigKey;
 use Componenta\Config\Environment;
 use Componenta\DI\ContainerFactory;
 use Componenta\Error\App\ConfigProvider as AppProvider;
+use Componenta\Error\App\ConfigKey as ErrorConfigKey;
+use Componenta\Error\Listener\Psr3ErrorListener;
+use Psr\Log\LoggerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Throwable;
 use Componenta\Error\App\Tests\Fixture\IntegrationErrorListener;
 use Componenta\ClassFinder\ClassIterator;
 use Componenta\ClassFinder\ClassIteratorInterface;
@@ -39,7 +44,8 @@ final class ExpectedApplicationFailure extends RuntimeException
 
 final class AppContainerIntegrationTest extends TestCase
 {
-    public function testComposedProvidersUseSafeOutputAndCorrelatedPrivateLogs(): void
+    #[DataProvider('loggingModes')]
+    public function testComposedProvidersUseSafeOutputAndCorrelatedPrivateLogs(bool $withPsr3): void
     {
         $directory = sys_get_temp_dir() . '/error-handler-app-di-' . bin2hex(random_bytes(12));
         mkdir($directory, 0700);
@@ -48,6 +54,19 @@ final class AppContainerIntegrationTest extends TestCase
         $listener = new IntegrationErrorListener();
         $clock = $this->createStub(ClockInterface::class);
         $clock->method('now')->willReturn($instant);
+        $records = [];
+        $loggerServices = [];
+        $loggingConfig = [];
+        if ($withPsr3) {
+            $logger = $this->createMock(LoggerInterface::class);
+            $logger->expects(self::exactly(2))->method('log')->willReturnCallback(
+                static function (mixed $level, string|\Stringable $message, array $record) use (&$records): void {
+                    $records[] = [$level, $message, $record];
+                },
+            );
+            $loggerServices = [LoggerInterface::class => $logger];
+            $loggingConfig = [ErrorConfigKey::ERROR_LISTENERS => [Throwable::class => [Psr3ErrorListener::class]]];
+        }
 
         try {
             file_put_contents($directory . '/.env', "APP_DEBUG=true\n");
@@ -55,8 +74,10 @@ final class AppContainerIntegrationTest extends TestCase
                 new Environment(['APP_DEBUG' => false]),
                 new AppProvider(),
                 static fn (): array => [
+                    ...$loggingConfig,
                     ConfigKey::DEPENDENCIES => [
                         ConfigKey::SERVICES => [
+                            ...$loggerServices,
                             PathResolverInterface::class => $paths,
                             ResponseFactoryInterface::class => new Psr17Factory(),
                             ClockInterface::class => $clock,
@@ -125,6 +146,25 @@ final class AppContainerIntegrationTest extends TestCase
             self::assertArrayNotHasKey('message', $http);
             self::assertArrayNotHasKey('message', $cliRecord);
             self::assertSame([], glob($directory . '/log/error-handler/*.html'));
+            if ($withPsr3) {
+                self::assertSame([
+                    ['error', 'Application error {error_id} ({exception_type})', [
+                        'error_id' => $httpId,
+                        'exception_type' => RuntimeException::class,
+                        'timestamp' => $instant->format('Y-m-d\TH:i:s.uP'),
+                        'transport' => 'http',
+                        'status' => 500,
+                    ]],
+                    ['error', 'Application error {error_id} ({exception_type})', [
+                        'error_id' => $cliError->id,
+                        'exception_type' => RuntimeException::class,
+                        'timestamp' => $instant->format('Y-m-d\TH:i:s.uP'),
+                        'transport' => 'cli',
+                    ]],
+                ], $records);
+            } else {
+                self::assertSame([], $records);
+            }
         } finally {
             foreach (glob($directory . '/log/error-handler/*') ?: [] as $file) {
                 unlink($file);
@@ -134,5 +174,11 @@ final class AppContainerIntegrationTest extends TestCase
             @unlink($directory . '/.env');
             rmdir($directory);
         }
+    }
+
+    public static function loggingModes(): iterable
+    {
+        yield 'standalone file logging without PSR-3' => [false];
+        yield 'explicit PSR-3 integration alongside file logging' => [true];
     }
 }

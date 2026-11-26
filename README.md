@@ -26,6 +26,23 @@ Values `1`, `true`, `yes`, and `on` enable debug. A missing `APP_DEBUG` and othe
 
 `FileLogListener` is registered for HTTP and CLI errors. `HtmlLogListener` is registered only for HTTP errors and writes snapshots only when `APP_DEBUG` is enabled.
 
+### Optional PSR-3 logging
+
+The application registers a factory for the core `Componenta\Error\Listener\Psr3ErrorListener`, but does not add it to the default listener list. To enable it, register a real `Psr\Log\LoggerInterface` service and append the listener to the error listener map:
+
+```php
+use Componenta\Error\App\ConfigKey;
+use Componenta\Error\Listener\Psr3ErrorListener;
+
+return [
+    ConfigKey::ERROR_LISTENERS => [
+        Throwable::class => [Psr3ErrorListener::class],
+    ],
+];
+```
+
+Config 4 appends listener lists. To replace all default registrations with PSR-3, set `ConfigKey::ERROR_LISTENERS => \Componenta\Config\ConfigOverride::replace([Throwable::class => [Psr3ErrorListener::class]])` instead. A missing or incorrectly typed logger fails explicit listener configuration rather than silently discarding errors. The standard factory excludes the raw exception object; override the listener service with `new Psr3ErrorListener($logger, includeException: true)` only for a trusted diagnostic sink.
+
 ## Registered Services
 
 `Componenta\Error\App\ConfigProvider` configures:

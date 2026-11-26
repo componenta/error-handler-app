@@ -7,6 +7,8 @@ namespace Componenta\Error\App;
 use Componenta\Config\Config;
 use Componenta\Config\ConfigProvider as BaseConfigProvider;
 use Componenta\Error\App\Factory\ErrorListenerProviderFactory;
+use Componenta\Error\App\Factory\Psr3ErrorListenerFactory;
+use Componenta\Error\Listener\Psr3ErrorListener;
 use Componenta\Error\App\Factory\CliErrorHandlerFactory;
 use Componenta\Error\App\Factory\ErrorHandlerMiddlewareFactory;
 use Componenta\Error\App\Factory\ErrorIdGeneratorFactory;
@@ -64,6 +66,7 @@ final class ConfigProvider extends BaseConfigProvider
             ErrorOccurrenceFactory::class => ErrorOccurrenceFactoryFactory::class,
             RandomErrorIdGenerator::class => ErrorIdGeneratorFactory::class,
             ErrorListenerProviderInterface::class => ErrorListenerProviderFactory::class,
+            Psr3ErrorListener::class => Psr3ErrorListenerFactory::class,
             ErrorReportingPolicyInterface::class => NonReportableErrorsFactory::class,
             ConfigKey::HTTP_RENDERER => static function (ContainerInterface $container): PrettyPageRenderer|SafeRenderer {
                 $paths = $container->get(PathResolverInterface::class);

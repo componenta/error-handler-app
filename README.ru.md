@@ -26,6 +26,23 @@ composer require componenta/error-handler-app
 
 `FileLogListener` регистрируется для HTTP и CLI ошибок. `HtmlLogListener` регистрируется только для HTTP ошибок и пишет снимки только при включенном `APP_DEBUG`.
 
+### Необязательное журналирование через PSR-3
+
+Приложение регистрирует фабрику слушателя ядра `Componenta\Error\Listener\Psr3ErrorListener`, но не добавляет его в список слушателей по умолчанию. Для подключения зарегистрируйте реальный сервис `Psr\Log\LoggerInterface` и добавьте слушатель в карту регистрации ошибок:
+
+```php
+use Componenta\Error\App\ConfigKey;
+use Componenta\Error\Listener\Psr3ErrorListener;
+
+return [
+    ConfigKey::ERROR_LISTENERS => [
+        Throwable::class => [Psr3ErrorListener::class],
+    ],
+];
+```
+
+Config 4 дополняет списки слушателей. Чтобы заменить все стандартные регистрации журналированием через PSR-3, используйте `ConfigKey::ERROR_LISTENERS => \Componenta\Config\ConfigOverride::replace([Throwable::class => [Psr3ErrorListener::class]])`. Отсутствующий или некорректно типизированный логгер приводит к ошибке явной настройки слушателя, а не к скрытой потере ошибок. Стандартная фабрика не передаёт исходный объект исключения; для доверенного диагностического хранилища переопределите сервис слушателя с помощью `new Psr3ErrorListener($logger, includeException: true)`.
+
 ## Регистрируемые сервисы
 
 `Componenta\Error\App\ConfigProvider` настраивает:
