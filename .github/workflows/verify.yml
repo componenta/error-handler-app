@@ -50,7 +50,7 @@ jobs:
           tools: composer:v2
           coverage: none
       - run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
-      - run: composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
+      - run: composer require --dev --no-interaction --no-update 'componenta/di:dev-main'
       - run: composer update --no-interaction --prefer-dist
       - run: composer audit --locked --no-dev --no-interaction
       - run: composer test:integration
