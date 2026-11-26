@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\App;
 
+use Componenta\Config\Config;
 use Componenta\Config\ConfigProvider as BaseConfigProvider;
 use Componenta\Error\ConfigKey as ErrorConfigKey;
 use Componenta\Error\App\Listener\FileLogListener;
@@ -35,13 +36,13 @@ final class ConfigProvider extends BaseConfigProvider
             ErrorConfigKey::HTTP_RENDERER => static function (ContainerInterface $container): PrettyPageRenderer|SafeRenderer {
                 $paths = $container->get(PathResolverInterface::class);
 
-                return EnvDebugResolver::resolve($paths)
+                return self::debugEnabled($container, $paths)
                     ? new PrettyPageRenderer(debug: true)
                     : new SafeRenderer(templatePath: $paths->resolve('templates/error/500.phtml'));
             },
             ErrorConfigKey::CLI_RENDERER => static function (ContainerInterface $container): PlainTextRenderer {
                 return new PlainTextRenderer(
-                    EnvDebugResolver::resolve($container->get(PathResolverInterface::class)),
+                    self::debugEnabled($container, $container->get(PathResolverInterface::class)),
                 );
             },
             FileLogListener::class => static function (ContainerInterface $container): FileLogListener {
@@ -49,7 +50,7 @@ final class ConfigProvider extends BaseConfigProvider
 
                 return new FileLogListener(
                     $paths->resolve('log/error-handler'),
-                    includeDebugDetails: EnvDebugResolver::resolve($paths),
+                    includeDebugDetails: self::debugEnabled($container, $paths),
                 );
             },
             HtmlLogListener::class => static function (ContainerInterface $container): HtmlLogListener {
@@ -58,7 +59,7 @@ final class ConfigProvider extends BaseConfigProvider
                 return new HtmlLogListener(
                     logDir: $paths->resolve('log/error-handler'),
                     renderer: new PrettyPageRenderer(debug: true),
-                    enabled: EnvDebugResolver::resolve($paths),
+                    enabled: self::debugEnabled($container, $paths),
                 );
             },
             SafeRenderer::class => static function (ContainerInterface $container): SafeRenderer {
@@ -67,5 +68,19 @@ final class ConfigProvider extends BaseConfigProvider
                 );
             },
         ];
+    }
+
+    private static function debugEnabled(ContainerInterface $container, PathResolverInterface $paths): bool
+    {
+        if (!$container->has(Config::class)) {
+            return EnvDebugResolver::resolve($paths);
+        }
+
+        $config = $container->get(Config::class);
+        if (!$config instanceof Config) {
+            return false;
+        }
+
+        return EnvDebugResolver::resolve($paths, $config->environment);
     }
 }

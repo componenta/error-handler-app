@@ -16,9 +16,9 @@ The package exposes `Componenta\Error\App\ConfigProvider` through Composer metad
 
 `APP_DEBUG=true` controls whether the HTTP renderer shows detailed exception output. When debug is disabled, the application renderer uses the safe `templates/error/500.phtml` template through `Componenta\Error\Renderer\SafeRenderer`.
 
-`EnvDebugResolver` first checks the process environment and then the project's `.env` file. An explicit false value disables debug even if the file enables it.
+`EnvDebugResolver` uses the composed Config environment snapshot when available. During bootstrap it checks the local process environment, then `$_ENV`, then the project's `.env` and `.env.local` files using Config's dotenv parser. Later assignments override earlier ones. Explicit false values, invalid or unreadable configuration disable debug.
 
-Values `1`, `true`, `yes`, and `on` enable debug. Missing `.env`, missing `APP_DEBUG`, and any other value disable debug.
+Values `1`, `true`, `yes`, and `on` enable debug. A missing `APP_DEBUG` and other values disable debug.
 
 ## Logging
 

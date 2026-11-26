@@ -4,92 +4,58 @@ declare(strict_types=1);
 
 namespace Componenta\Error\App;
 
+use Componenta\Config\Environment;
+use Componenta\Config\Loader\EnvLoader;
 use Componenta\Stdlib\PathResolverInterface;
+use Throwable;
 
 final class EnvDebugResolver
 {
     private const string KEY = 'APP_DEBUG';
 
-    public static function resolve(PathResolverInterface $paths): bool
+    public static function resolve(PathResolverInterface $paths, ?Environment $environment = null): bool
     {
-        $process = getenv(self::KEY);
-        $environment = $_ENV[self::KEY] ?? null;
-        $value = $process !== false ? $process
-            : (is_string($environment) ? $environment : self::readValue($paths->resolve('.env')));
+        // Once the application configuration exists, use its immutable snapshot.
+        if ($environment !== null) {
+            return self::enabled($environment->get(self::KEY, null));
+        }
 
-        return match (strtolower(trim($value ?? ''))) {
-            '1', 'true', 'yes', 'on' => true,
-            default => false,
-        };
+        $process = getenv(self::KEY, true);
+        if ($process !== false) {
+            return self::enabled($process);
+        }
+        if (array_key_exists(self::KEY, $_ENV)) {
+            return self::enabled($_ENV[self::KEY]);
+        }
+
+        // Bootstrap fallback: use the same dotenv grammar and precedence as Config.
+        try {
+            $value = null;
+            foreach (['.env', '.env.local'] as $name) {
+                $path = $paths->resolve($name);
+                if (!is_file($path)) {
+                    continue;
+                }
+                $size = @filesize($path);
+                if ($size === false || $size > 1_048_576 || !is_readable($path)) {
+                    return false;
+                }
+                $values = (new EnvLoader(dirname($path), filenames: [basename($path)]))->read() ?? [];
+                if (array_key_exists(self::KEY, $values)) {
+                    $value = $values[self::KEY];
+                }
+            }
+
+            return self::enabled($value);
+        } catch (Throwable) {
+            // A malformed or unavailable configuration must never enable debug.
+            return false;
+        }
     }
 
-    private static function readValue(string $path): ?string
+    private static function enabled(mixed $value): bool
     {
-        if (!is_file($path) || !is_readable($path)) {
-            return null;
-        }
-
-        $size = @filesize($path);
-        if ($size === false || $size > 1_048_576) {
-            return null;
-        }
-        $lines = @file($path, FILE_IGNORE_NEW_LINES);
-
-        if ($lines === false) {
-            return null;
-        }
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-
-            if ($line === '' || str_starts_with($line, '#')) {
-                continue;
-            }
-
-            if (str_starts_with($line, 'export ')) {
-                $line = trim(substr($line, 7));
-            }
-
-            $separator = strpos($line, '=');
-
-            if ($separator === false) {
-                continue;
-            }
-
-            $key = trim(substr($line, 0, $separator));
-
-            if ($key !== self::KEY) {
-                continue;
-            }
-
-            return self::parseValue(trim(substr($line, $separator + 1)));
-        }
-
-        return null;
-    }
-
-    private static function parseValue(string $value): string
-    {
-        if ($value === '') {
-            return '';
-        }
-
-        $quote = $value[0];
-
-        if (($quote === '"' || $quote === "'") && str_ends_with($value, $quote)) {
-            $value = substr($value, 1, -1);
-
-            return $quote === '"'
-                ? str_replace(['\\n', '\\r', '\\t', '\\"', '\\\\'], ["\n", "\r", "\t", '"', '\\'], $value)
-                : $value;
-        }
-
-        $comment = strpos($value, ' #');
-
-        if ($comment !== false) {
-            $value = substr($value, 0, $comment);
-        }
-
-        return trim($value);
+        return $value === true || $value === 1
+            || (is_string($value) && in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true));
     }
 }
