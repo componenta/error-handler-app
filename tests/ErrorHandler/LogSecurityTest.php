@@ -198,4 +198,45 @@ final class LogSecurityTest extends TestCase
             self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
         }
     }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('metadataFailures')]
+    public function testFileLoggingRetainsPrimaryRecordWhenHttpMetadataFails(bool $methodFails, bool $statusFails): void
+    {
+        $context = $this->createStub(\Componenta\Error\Context\HttpErrorContextInterface::class);
+        $request = $this->createStub(\Psr\Http\Message\ServerRequestInterface::class);
+        if ($methodFails) {
+            $request->method('getMethod')->willThrowException(new RuntimeException('request unavailable'));
+        } else {
+            $request->method('getMethod')->willReturn('POST');
+        }
+        $context->method(\PHPUnit\Framework\MockObject\Runtime\PropertyHook::get('request'))->willReturn($request);
+        if ($statusFails) {
+            $context->method('getAttribute')->willThrowException(new RuntimeException('status unavailable'));
+        } else {
+            $context->method('getAttribute')->willReturn(503);
+        }
+
+        $event = new ErrorEvent(
+            new ErrorOccurrence(new RuntimeException('private'), 'ERR-metadata'),
+            $context,
+            new \DateTimeImmutable('2026-01-01T12:00:00Z'),
+        );
+        (new FileLogListener($this->directory))->handleEvent($event);
+        $files = glob($this->directory . '/*.log');
+        self::assertCount(1, $files);
+        $record = json_decode(file_get_contents($files[0]), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('ERR-metadata', $record['error_id']);
+        self::assertSame(RuntimeException::class, $record['exception']);
+        self::assertSame('http', $record['transport']);
+        self::assertSame(!$methodFails, array_key_exists('method', $record));
+        self::assertSame(!$statusFails, array_key_exists('status', $record));
+        self::assertArrayNotHasKey('message', $record);
+    }
+
+    public static function metadataFailures(): iterable
+    {
+        yield 'request failure' => [true, false];
+        yield 'status failure' => [false, true];
+        yield 'both fail' => [true, true];
+    }
 }

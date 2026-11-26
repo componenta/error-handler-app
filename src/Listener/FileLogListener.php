@@ -9,6 +9,7 @@ use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
+use Throwable;
 
 final readonly class FileLogListener extends AbstractErrorListener
 {
@@ -27,17 +28,27 @@ final readonly class FileLogListener extends AbstractErrorListener
             'timestamp' => $event->timestamp->format(DATE_ATOM),
             'level' => $exception instanceof \Error ? 'critical' : 'error',
             'error_id' => $event->error->id,
-            'exception' => $exception::class,
+            'exception' => get_debug_type($exception),
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
         ];
 
         if ($context instanceof HttpErrorContextInterface) {
             $record['transport'] = 'http';
-            $record['method'] = $context->request->getMethod();
-            $status = $context->getAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, null);
-            if (is_int($status) && $status >= 100 && $status <= 599) {
-                $record['status'] = $status;
+            // Optional transport metadata must not discard the primary record.
+            // Accessors can fail independently in a third-party context.
+            try {
+                $record['method'] = $context->request->getMethod();
+            } catch (Throwable) {
+                // Omit unavailable request metadata.
+            }
+            try {
+                $status = $context->getAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, null);
+                if (is_int($status) && $status >= 100 && $status <= 599) {
+                    $record['status'] = $status;
+                }
+            } catch (Throwable) {
+                // Omit unavailable response metadata.
             }
         } elseif ($context instanceof CliErrorContextInterface) {
             $record['transport'] = 'cli';
