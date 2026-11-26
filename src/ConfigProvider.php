@@ -12,6 +12,7 @@ use Componenta\Error\App\Listener\HtmlLogListener;
 use Componenta\Error\Renderer\PlainTextRenderer;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Componenta\Error\Renderer\SafeRenderer;
+use Componenta\Error\Renderer\SafeCliRenderer;
 use Componenta\Stdlib\PathResolverInterface;
 use Psr\Container\ContainerInterface;
 
@@ -40,10 +41,10 @@ final class ConfigProvider extends BaseConfigProvider
                     ? new PrettyPageRenderer(debug: true)
                     : new SafeRenderer(templatePath: $paths->resolve('templates/error/500.phtml'));
             },
-            ErrorConfigKey::CLI_RENDERER => static function (ContainerInterface $container): PlainTextRenderer {
-                return new PlainTextRenderer(
-                    self::debugEnabled($container, $container->get(PathResolverInterface::class)),
-                );
+            ErrorConfigKey::CLI_RENDERER => static function (ContainerInterface $container): PlainTextRenderer|SafeCliRenderer {
+                return self::debugEnabled($container, $container->get(PathResolverInterface::class))
+                    ? new PlainTextRenderer(debug: true)
+                    : new SafeCliRenderer();
             },
             FileLogListener::class => static function (ContainerInterface $container): FileLogListener {
                 $paths = $container->get(PathResolverInterface::class);

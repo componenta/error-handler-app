@@ -43,7 +43,8 @@
         }
     },
     "scripts": {
-        "test": "@php vendor/bin/pest"
+        "test": "@php vendor/bin/pest --testsuite error-handler-app",
+        "test:integration": "@php vendor/bin/pest --testsuite integration"
     },
     "prefer-stable": true
 }

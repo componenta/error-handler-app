@@ -31,3 +31,24 @@ jobs:
       - run: composer update --no-interaction --prefer-dist
       - run: find src tests -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
       - run: composer test
+
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: componenta/error-handler
+          ref: refactor/error-handler-v2
+          path: .deps/error-handler
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring
+          tools: composer:v2
+          coverage: none
+      - run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
+      - run: composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
+      - run: composer update --no-interaction --prefer-dist
+      - run: composer test:integration

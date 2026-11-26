@@ -35,7 +35,7 @@ composer require componenta/error-handler-app
 | `ErrorConfigKey::HTTP_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
 | `ErrorConfigKey::CLI_LISTENERS` | `FileLogListener` |
 | `ErrorConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` в режиме отладки, иначе `SafeRenderer` с `templates/error/500.phtml`. |
-| `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer` с флагом отладки из окружения. |
+| `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` в режиме отладки, иначе `SafeCliRenderer`. |
 | `SafeRenderer::class` | Безопасный рендерер, привязанный к `templates/error/500.phtml`. |
 
 Пакет не заменяет базовые обработчики из `componenta/error-handler`; он только предоставляет рендереры и слушатели приложения, которые используют эти обработчики.

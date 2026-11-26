@@ -3,6 +3,10 @@
     <testsuites>
         <testsuite name="error-handler-app">
             <directory>tests</directory>
+            <exclude>tests/Integration</exclude>
+        </testsuite>
+        <testsuite name="integration">
+            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
     <source>

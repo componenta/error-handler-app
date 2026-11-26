@@ -35,7 +35,7 @@ Values `1`, `true`, `yes`, and `on` enable debug. A missing `APP_DEBUG` and othe
 | `ErrorConfigKey::HTTP_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
 | `ErrorConfigKey::CLI_LISTENERS` | `FileLogListener` |
 | `ErrorConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` in debug, otherwise `SafeRenderer` with `templates/error/500.phtml`. |
-| `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer` with debug flag from the environment resolver. |
+| `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` in debug mode, otherwise `SafeCliRenderer`. |
 | `SafeRenderer::class` | Safe renderer bound to `templates/error/500.phtml`. |
 
 This package does not replace the base handlers from `componenta/error-handler`; it only supplies application renderers and listeners used by those handlers.
