@@ -21,12 +21,12 @@ final readonly class FileLogListener extends AbstractErrorListener
 
     public function handleEvent(ErrorEventInterface $event): void
     {
-        $exception = $event->exception;
+        $exception = $event->error->exception;
         $context = $event->context;
         $record = [
             'timestamp' => $event->timestamp->format(DATE_ATOM),
             'level' => $exception instanceof \Error ? 'critical' : 'error',
-            'error_id' => $event->errorId,
+            'error_id' => $event->error->id,
             'exception' => $exception::class,
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),

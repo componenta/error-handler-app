@@ -9,6 +9,7 @@ use Componenta\Error\App\Listener\HtmlLogListener;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Event\ErrorEvent;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -35,10 +36,9 @@ final class LogSecurityTest extends TestCase
     public function testPrivateStructuredRecordContainsCorrelationWithoutSecrets(): void
     {
         $event = new ErrorEvent(
-            new RuntimeException("injected\nfake record secret"),
+            new ErrorOccurrence(new RuntimeException("injected\nfake record secret"), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/?token=private-query'), [ErrorContextAttribute::HTTP_STATUS_CODE => 503]),
             timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'),
-            errorId: 'ERR-test',
         );
         (new FileLogListener($this->directory))->handleEvent($event);
         $files = glob($this->directory . '/*.log');
@@ -58,7 +58,7 @@ final class LogSecurityTest extends TestCase
 
     public function testHtmlSnapshotsAreOptInAndNeverOverwriteEachOther(): void
     {
-        $event = new ErrorEvent(new RuntimeException('failure'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])), timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'), errorId: 'same');
+        $event = new ErrorEvent(new ErrorOccurrence(new RuntimeException('failure'), 'same'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])), timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'));
         (new HtmlLogListener($this->directory, new PrettyPageRenderer()))->handleEvent($event);
         self::assertSame([], glob($this->directory . '/*.html'));
 
@@ -81,10 +81,9 @@ final class LogSecurityTest extends TestCase
         $template = $this->directory . '/snapshot.phtml';
         file_put_contents($template, '<!doctype html><html><body><?= $e($headers["Accept"] ?? "") ?>;<?= $e($errorId) ?></body></html>');
         $event = new ErrorEvent(
-            new RuntimeException('failure'),
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-snapshot-123'),
             new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
             timestamp: new \DateTimeImmutable('2026-01-01T12:00:00Z'),
-            errorId: 'ERR-snapshot-123',
         );
 
         $listener = new HtmlLogListener(

@@ -6,6 +6,8 @@ namespace Componenta\Error\App\Listener;
 
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Context\HttpContext;
+use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
 use Componenta\Error\Renderer\PrettyPageRenderer;
@@ -22,6 +24,11 @@ final readonly class HtmlLogListener extends AbstractErrorListener
         $this->storage = new PrivateLogStorage($logDir);
     }
 
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
+    {
+        return $this->enabled && $context instanceof HttpErrorContextInterface;
+    }
+
     public function handleEvent(ErrorEventInterface $event): void
     {
         if (!$this->enabled || !$event->context instanceof HttpErrorContextInterface) {
@@ -31,13 +38,13 @@ final readonly class HtmlLogListener extends AbstractErrorListener
         // Keep original request metadata in the diagnostic snapshot. A
         // non-debug PrettyPageRenderer can negotiate JSON, so only that path
         // needs a separate HTML representation.
-        $rendered = $this->renderer->render($event->exception, $event->context);
+        $rendered = $this->renderer->render($event->error, $event->context);
         if (strtolower(trim(explode(';', $rendered->contentType, 2)[0])) !== 'text/html') {
             $context = new HttpContext(
                 $event->context->request->withHeader('Accept', 'text/html'),
                 $event->context->getAttributes(),
             );
-            $rendered = $this->renderer->render($event->exception, $context);
+            $rendered = $this->renderer->render($event->error, $context);
         }
         if (strtolower(trim(explode(';', $rendered->contentType, 2)[0])) !== 'text/html') {
             throw new \RuntimeException('The error snapshot renderer did not produce HTML.');
@@ -46,7 +53,7 @@ final readonly class HtmlLogListener extends AbstractErrorListener
         if (strlen($html) > 2_097_152) {
             throw new \RuntimeException('Error snapshot exceeds the storage limit.');
         }
-        $correlation = $event->errorId === null ? 'uncorrelated' : hash('sha256', $event->errorId);
+        $correlation = hash('sha256', $event->error->id);
         $name = $event->timestamp->format('Ymd-His') . '_' . $correlation . '_' . bin2hex(random_bytes(16)) . '.html';
         $this->storage->create($name, $html);
     }

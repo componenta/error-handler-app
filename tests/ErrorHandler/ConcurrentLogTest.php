@@ -7,6 +7,7 @@ namespace Componenta\Error\App\Tests\ErrorHandler;
 use Componenta\Error\App\Listener\FileLogListener;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Event\ErrorEvent;
+use Componenta\Error\ErrorOccurrence;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -130,9 +131,8 @@ final class ConcurrentLogTest extends TestCase
     private function event(): ErrorEvent
     {
         return new ErrorEvent(
-            new RuntimeException('failure'),
+            new ErrorOccurrence(new RuntimeException('failure'), 'ERR-example'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
-            errorId: 'ERR-example',
             timestamp: new DateTimeImmutable('2026-01-01T12:00:00Z'),
         );
     }

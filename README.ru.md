@@ -32,8 +32,7 @@ composer require componenta/error-handler-app
 
 | Ключ или сервис | Значение |
 |---|---|
-| `ErrorConfigKey::HTTP_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
-| `ErrorConfigKey::CLI_LISTENERS` | `FileLogListener` |
+| `ErrorConfigKey::ERROR_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
 | `ErrorConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` в режиме отладки, иначе `SafeRenderer` с `templates/error/500.phtml`. |
 | `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` в режиме отладки, иначе `SafeCliRenderer`. |
 | `SafeRenderer::class` | Безопасный рендерер, привязанный к `templates/error/500.phtml`. |
@@ -51,3 +50,5 @@ composer require componenta/error-handler-app
 Требуются Config 4 и Error Handler 2. Зависимости от среды выполнения приложения и HTTP-эмиттера удалены. По умолчанию журналы сохраняются в `log/error-handler`. Записи содержат идентификатор ошибки; URI запросов и аргументы команд не записываются. На POSIX-системах каталог должен быть закрытым (0700), файлы создаются с правами 0600. HTML-снимки создаются без перезаписи, ограничены 2 МиБ на снимок и по умолчанию отключены при самостоятельном создании слушателя. Размещайте каталог вне публичной директории и настройте ротацию и срок хранения средствами окружения. Отладочный вывод может содержать конфиденциальные сообщения исключений и исходный код; включайте его только в доверенной среде.
 
 Рендереры возвращают объект `RenderedError` из ядра (`content`, `contentType`, `Stringable`). HTML-снимки используют этот же контракт без отдельного метода HTTP-рендеринга.
+
+Ядро регистрирует единый репортёр, не зависящий от транспорта. Файловый журнал обрабатывает HTTP- и CLI-события, а HTML-снимки — только HTTP при включённой отладке. Слушатели получают обязательный `ErrorOccurrence` через `$event->error`, HTTP-статус — из контекста.

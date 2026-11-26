@@ -12,6 +12,8 @@ use Componenta\Error\App\ConfigProvider as AppProvider;
 use Componenta\Error\ConfigProvider as CoreProvider;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
+use Componenta\Error\ErrorOccurrenceFactory;
+use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Handler\CliErrorHandlerInterface;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Stdlib\PathResolverInterface;
@@ -56,20 +58,23 @@ final class AppContainerIntegrationTest extends TestCase
 
             $container = (new ContainerFactory())->create($composition->config, $composition->dependencies);
             $error = new RuntimeException('private-exception-message');
+            $factory = $container->get(ErrorOccurrenceFactory::class);
+            $httpError = $factory->create($error);
+            $cliError = $factory->create($error);
             $response = $container->get(HttpErrorHandlerInterface::class)->handle(
-                $error,
+                $httpError,
                 new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
             );
             $output = new BufferedOutput();
             $container->get(CliErrorHandlerInterface::class)->handle(
-                $error,
+                $cliError,
                 new CliContext(new ArrayInput([]), $output),
             );
 
             $json = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
             self::assertSame(500, $response->getStatusCode());
             $httpId = $response->getHeaderLine('X-Error-ID');
-            self::assertNotEmpty($httpId);
+            self::assertSame($httpError->id, $httpId);
             self::assertSame($httpId, $json['error']['id']);
             self::assertStringNotContainsString('private-exception-message', (string) $response->getBody());
             $cli = $output->fetch();
@@ -90,6 +95,7 @@ final class AppContainerIntegrationTest extends TestCase
             self::assertSame('cli', $cliRecord['transport']);
             self::assertSame($httpId, $http['error_id']);
             self::assertStringContainsString('Error ID: ' . $cliRecord['error_id'], $cli);
+            self::assertSame($cliError->id, $cliRecord['error_id']);
             self::assertNotSame($http['error_id'], $cliRecord['error_id']);
             self::assertArrayNotHasKey('message', $http);
             self::assertArrayNotHasKey('message', $cliRecord);

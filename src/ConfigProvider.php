@@ -21,12 +21,9 @@ final class ConfigProvider extends BaseConfigProvider
     protected function getConfig(): array
     {
         return [
-            ErrorConfigKey::HTTP_LISTENERS => [
+            ErrorConfigKey::ERROR_LISTENERS => [
                 FileLogListener::class,
                 HtmlLogListener::class,
-            ],
-            ErrorConfigKey::CLI_LISTENERS => [
-                FileLogListener::class,
             ],
         ];
     }
