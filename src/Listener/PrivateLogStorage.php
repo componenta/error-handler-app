@@ -9,8 +9,26 @@ use RuntimeException;
 /** @internal Storage for private, bounded diagnostic records. */
 final readonly class PrivateLogStorage
 {
-    public function __construct(private string $directory)
+    private string $directory;
+
+    public function __construct(string $directory)
     {
+        if ($directory === '' || str_contains($directory, "\0")) {
+            throw new RuntimeException('Invalid error log directory.');
+        }
+
+        // POSIX lstat/is_link follows a symlink when a trailing separator or
+        // dot segment is present. Remove only equivalent trailing components;
+        // do not collapse arbitrary ".." segments or resolve links.
+        if (DIRECTORY_SEPARATOR === '/') {
+            $directory = rtrim($directory, '/');
+            while (str_ends_with($directory, '/.')) {
+                $directory = rtrim(substr($directory, 0, -2), '/');
+            }
+            $directory = $directory === '' ? '/' : $directory;
+        }
+
+        $this->directory = $directory;
     }
 
     public function append(string $name, string $record): void
@@ -36,6 +54,8 @@ final readonly class PrivateLogStorage
                 throw new RuntimeException('Unable to lock the error log.');
             }
             try {
+                // The named file may have been rotated while waiting for the lock.
+                $this->verifyOpenedFile($file, $path);
                 $metadata = fstat($file);
                 if ($metadata === false) {
                     throw new RuntimeException('Unable to determine the original log size.');

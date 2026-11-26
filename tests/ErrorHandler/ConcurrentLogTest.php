@@ -72,6 +72,41 @@ final class ConcurrentLogTest extends TestCase
         self::assertSame('untouched', file_get_contents($target));
     }
 
+    #[\PHPUnit\Framework\Attributes\DataProvider('directorySuffixes')]
+    public function testSymbolicLinkDirectoryCannotBeHiddenByTrailingComponents(string $suffix): void
+    {
+        if (DIRECTORY_SEPARATOR !== '/' || !function_exists('symlink')) {
+            self::markTestSkipped('POSIX symbolic links are required.');
+        }
+        $target = $this->directory . '/target';
+        $link = $this->directory . '/link';
+        mkdir($target, 0700);
+        self::assertTrue(symlink($target, $link));
+        try {
+            try {
+                (new FileLogListener($link . $suffix))->handleEvent($this->event());
+                self::fail('A symbolic-link log directory must be rejected.');
+            } catch (RuntimeException $failure) {
+                self::assertStringContainsString('symbolic-link log directory', $failure->getMessage());
+            }
+            self::assertSame([], glob($target . '/*.log'));
+        } finally {
+            foreach (glob($target . '/*.log') ?: [] as $file) {
+                unlink($file);
+            }
+            unlink($link);
+            rmdir($target);
+        }
+    }
+
+    public static function directorySuffixes(): iterable
+    {
+        yield 'plain' => [''];
+        yield 'trailing slash' => ['/'];
+        yield 'trailing dot' => ['/.'];
+        yield 'multiple trailing components' => ['//././'];
+    }
+
     public function testConcurrentProcessesAppendWholeUniqueRecords(): void
     {
         if (!function_exists('proc_open')) {
