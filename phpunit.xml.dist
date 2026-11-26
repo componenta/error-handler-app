@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="vendor/autoload.php" cacheDirectory=".phpunit.cache" colors="true">
+<phpunit bootstrap="vendor/autoload.php" cacheDirectory=".phpunit.cache" colors="true" failOnWarning="true" failOnRisky="true" displayDetailsOnTestsThatTriggerWarnings="true">
     <testsuites>
         <testsuite name="error-handler-app">
             <directory>tests</directory>

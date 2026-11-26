@@ -17,8 +17,11 @@ final readonly class PrivateLogStorage
     {
         $path = $this->path($name);
         clearstatcache(true, $path);
-        $existing = @lstat($path);
-        if ($existing !== false) {
+        if (file_exists($path) || is_link($path)) {
+            $existing = @lstat($path);
+            if ($existing === false) {
+                throw new RuntimeException('Unable to inspect an existing log target.');
+            }
             self::assertRegular($existing);
         }
 
