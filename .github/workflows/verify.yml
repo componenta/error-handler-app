@@ -4,6 +4,13 @@ on:
     branches: [refactor/error-handler-v2]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      use_published_core:
+        description: Install the released core through Composer instead of a branch checkout
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 jobs:
@@ -16,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
+        if: ${{ !inputs.use_published_core }}
         with:
           repository: componenta/error-handler
           ref: refactor/error-handler-v2
@@ -26,7 +34,8 @@ jobs:
           extensions: mbstring
           coverage: none
           tools: composer:v2
-      - run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
+      - if: ${{ !inputs.use_published_core }}
+        run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
       - run: composer validate --strict
       - run: composer update --no-interaction --prefer-dist
       - run: composer audit --locked --no-dev --no-interaction
@@ -39,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
+        if: ${{ !inputs.use_published_core }}
         with:
           repository: componenta/error-handler
           ref: refactor/error-handler-v2
@@ -49,7 +59,8 @@ jobs:
           extensions: mbstring
           tools: composer:v2
           coverage: none
-      - run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
+      - if: ${{ !inputs.use_published_core }}
+        run: composer config repositories.error-handler '{"type":"path","url":".deps/error-handler","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
       - run: composer require --dev --no-interaction --no-update 'componenta/di:dev-main'
       - run: composer update --no-interaction --prefer-dist
       - run: composer audit --locked --no-dev --no-interaction
