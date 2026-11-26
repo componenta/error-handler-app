@@ -33,11 +33,11 @@ Values `1`, `true`, `yes`, and `on` enable debug. A missing `APP_DEBUG` and othe
 | Key or service | Value |
 |---|---|
 | `ConfigKey::ERROR_LISTENERS` | `FileLogListener`, `HtmlLogListener` |
-| `ErrorConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` in debug, otherwise `SafeRenderer` with `templates/error/500.phtml`. |
-| `ErrorConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` in debug mode, otherwise `SafeCliRenderer`. |
+| `ConfigKey::HTTP_RENDERER` | `PrettyPageRenderer(debug: true)` in debug, otherwise `SafeRenderer` with `templates/error/500.phtml`. |
+| `ConfigKey::CLI_RENDERER` | `PlainTextRenderer(debug: true)` in debug mode, otherwise `SafeCliRenderer`. |
 | `SafeRenderer::class` | Safe renderer bound to `templates/error/500.phtml`. |
 
-This package supplies the framework listener-provider and reporting-policy factories, as well as application renderers and listeners. Core handlers remain in error-handler.
+This package supplies all Componenta configuration keys, service factories, aliases, renderer selection, listener discovery and reporting policy registration. Core handlers remain in error-handler.
 
 ## Related Packages
 
@@ -51,7 +51,7 @@ Requires Config 4 and Error Handler 2. The package no longer depends on an appli
 
 Renderers return the core `RenderedError` value (`content`, `contentType`, `Stringable`). HTML snapshots consume this same contract, without a separate HTTP rendering method.
 
-The core registers a single transport-independent reporter. File logging handles HTTP and CLI events, while HTML snapshots support only HTTP when debug is enabled. Each listener consumes the mandatory `ErrorOccurrence` through `$event->error`, and HTTP status comes from the context.
+The application registers a single transport-independent reporter. File logging handles HTTP and CLI events, while HTML snapshots support only HTTP when debug is enabled. Each listener consumes the mandatory `ErrorOccurrence` through `$event->error`, and HTTP status comes from the context.
 
 ## Listener registration and discovery
 
@@ -73,3 +73,5 @@ return [
 The application creates a composite provider (explicit registrations first, attribute registrations second). Mark concrete listener classes with #[\Componenta\Error\Event\Attribute\ListenTo(RuntimeException::class, priority: 10)] and make them resolvable by class name in the container. When the application exposes Componenta\ClassFinder\ClassIteratorInterface, its existing discovery results are consumed once during provider construction; no second filesystem scan is launched. Set ConfigKey::DISCOVER_ERROR_LISTENERS to false to use only explicitly configured candidates. If no discovery iterator exists, the explicit class list still works. Resolve ErrorListenerProviderInterface during application initialization to prepare the routing metadata before errors are handled. The core provider never depends on ClassFinder or the application runtime. Clock selection and event creation remain the reporter's responsibility.
 
 The configured log directory and its ancestors must be deployment-controlled. The leaf directory must not be a symlink, including paths with equivalent trailing separators or dot components; file identity is checked again after acquiring the append lock. External rotation may race with writes and must be coordinated with the application.
+
+Only `Componenta\Error\App\ConfigProvider` is registered. The standalone core no longer registers a configuration provider or exposes Componenta configuration keys. Import `Componenta\Error\App\ConfigKey` for HTTP/CLI settings (`HTTP_FALLBACK_GENERATOR`, `HTTP_GENERATORS`, `CLI_FALLBACK_HANDLER`, `ERROR_LEVEL`, renderers and reporting settings). Existing string key values are preserved.

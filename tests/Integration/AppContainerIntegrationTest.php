@@ -14,7 +14,6 @@ use Componenta\ClassFinder\ClassIterator;
 use Componenta\ClassFinder\ClassIteratorInterface;
 use Componenta\Tokenizer\ClassInfo;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
-use Componenta\Error\ConfigProvider as CoreProvider;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorOccurrenceFactory;
@@ -54,7 +53,6 @@ final class AppContainerIntegrationTest extends TestCase
             file_put_contents($directory . '/.env', "APP_DEBUG=true\n");
             $composition = (new ConfigFactory())->create(
                 new Environment(['APP_DEBUG' => false]),
-                new CoreProvider(),
                 new AppProvider(),
                 static fn (): array => [
                     ConfigKey::DEPENDENCIES => [

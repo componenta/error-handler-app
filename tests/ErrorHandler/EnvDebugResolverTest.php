@@ -7,7 +7,7 @@ use Componenta\Config\Environment;
 use Componenta\Config\Config;
 use Componenta\Config\ConfigKey;
 use Componenta\Error\App\ConfigProvider;
-use Componenta\Error\ConfigKey as ErrorConfigKey;
+use Componenta\Error\App\ConfigKey as ErrorConfigKey;
 use Componenta\Error\Renderer\SafeRenderer;
 use Psr\Container\ContainerInterface;
 use Componenta\Stdlib\PathResolverInterface;
