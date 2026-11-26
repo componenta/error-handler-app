@@ -54,13 +54,21 @@ final class LogSecurityTest extends TestCase
 
     public function testHtmlSnapshotsAreOptInAndNeverOverwriteEachOther(): void
     {
-        $event = new ErrorEvent(new RuntimeException('failure'), new HttpContext(new ServerRequest('GET', '/')), errorId: 'same');
+        $event = new ErrorEvent(new RuntimeException('failure'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])), errorId: 'same');
         (new HtmlLogListener($this->directory, new PrettyPageRenderer()))->handleEvent($event);
         self::assertSame([], glob($this->directory . '/*.html'));
 
         $listener = new HtmlLogListener($this->directory, new PrettyPageRenderer(debug: false), enabled: true);
         $listener->handleEvent($event);
         $listener->handleEvent($event);
-        self::assertCount(2, glob($this->directory . '/*.html'));
+        $snapshots = glob($this->directory . '/*.html');
+        self::assertCount(2, $snapshots);
+        foreach ($snapshots as $snapshot) {
+            $html = file_get_contents($snapshot);
+            self::assertIsString($html);
+            self::assertStringContainsString('<html', strtolower($html));
+            self::assertStringContainsString('same', $html);
+        }
+        self::assertSame('application/json', $event->context->request->getHeaderLine('Accept'));
     }
 }

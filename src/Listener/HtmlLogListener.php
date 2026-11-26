@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\App\Listener;
 
 use Componenta\Error\Context\HttpErrorContextInterface;
+use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Listener\AbstractErrorListener;
 use Componenta\Error\Renderer\PrettyPageRenderer;
@@ -27,7 +28,16 @@ final readonly class HtmlLogListener extends AbstractErrorListener
             return;
         }
 
-        $html = $this->renderer->render($event->exception, $event->context);
+        // A snapshot is HTML even when the original client requested JSON.
+        $context = new HttpContext(
+            $event->context->request->withHeader('Accept', 'text/html'),
+            $event->context->getAttributes(),
+        );
+        $rendered = $this->renderer->renderHttp($event->exception, $context);
+        if (strtolower(trim(explode(';', $rendered->contentType, 2)[0])) !== 'text/html') {
+            throw new \RuntimeException('The error snapshot renderer did not produce HTML.');
+        }
+        $html = $rendered->body;
         if (strlen($html) > 2_097_152) {
             throw new \RuntimeException('Error snapshot exceeds the storage limit.');
         }
