@@ -49,3 +49,5 @@ This package does not replace the base handlers from `componenta/error-handler`;
 ## Version 2 migration and operational security
 
 Requires Config 4 and Error Handler 2. The package no longer depends on an application runtime or HTTP emitter. Both log listeners write to `log/error-handler` by default. Log records carry an error ID for correlation; request URIs and command arguments are omitted. On POSIX systems the log directory must be private (0700) and files use 0600. HTML snapshots are exclusive files, limited to 2 MiB per snapshot, and disabled by default when constructed manually. Keep the directory outside the document root and configure rotation and retention with your deployment tooling. Debug output may contain sensitive exception messages and source code; enable it only in trusted environments.
+
+Renderers return the core `RenderedError` value (`content`, `contentType`, `Stringable`). HTML snapshots consume this same contract, without a separate HTTP rendering method.
